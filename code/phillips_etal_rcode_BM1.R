@@ -25,7 +25,7 @@ list.of.packages <-
     'glue'
   )
 
-# check to see if all th required pkgs are installed, if not, install them
+# check to see if all the required pkgs are installed, if not, install them
 new.packages <-
   list.of.packages[!(list.of.packages %in% installed.packages()[, "Package"])]
 if (length(new.packages))
@@ -384,12 +384,6 @@ series_2_3_4 <-
             factor) %>% 
   filter(class %in% c("cb", "cf"))
 
-
-# BM: not sure what this line is doing...
-# levels(series_2_3_4$class)[levels(series_2_3_4$class %in% c('F', 'f'))] <-
-#  NA
-
-
 #plot predictor variables to assess data distributions
 #Figure 12
 
@@ -692,9 +686,6 @@ direction_data_3 <-
 #Permutation tests for difference in means of tool orientation by series, slope, and class
 #Permutation test function
 
-# BM: not sure if this test is suitable for directional data... Also not sure 
-# what a better choice is!
-
 create_perm_test <- function(df, y_var, x_var) {
   frm <- as.formula(sprintf("%s~%s", y_var, x_var))
   perm_test <- permKS(frm,
@@ -763,10 +754,6 @@ series_cores <-
   experiment_logdata %>% 
   filter(class %in% c("cb", "cf")) %>% 
   mutate(class = factor(class))
-
-
-# BM: this doesn't seem necessary... 
-# series_cores$class[series_cores$class == c("f", "F")] <- NA
 
 #Plot tool counts function
 
