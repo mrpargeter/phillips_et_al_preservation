@@ -450,7 +450,7 @@ Figure S1
 
 generate hypothetical distribution using movement dataset parameters
 
-```{r}
+```{r }
 control <- as.numeric(na.omit(experiment_data$near_dist_m))
 
 ## estimate the parameters as fit to weibull, exponential, log normal, and gamma distributions
@@ -462,9 +462,16 @@ plot_fns <- c(denscomp, cdfcomp, qqcomp, ppcomp)
 #model diagnostics plot
 
 # windows()
+png_file <- paste0(here::here(), "/code/model_diagnostics_plot.png")
+png(png_file, width = 500, height = 500, units = "px")
 par(mfrow = c(2, 2))
 plot.legend <- c("Weibull", "exp", "lognormal", "gamma")
 plot_fns %>% invoke_map( , fits)
+dev.off()
+```
+
+```{r out.width="600px"}
+knitr::include_graphics(png_file)
 ```
 
 ### Series 2 tool movement modeled against tool size
