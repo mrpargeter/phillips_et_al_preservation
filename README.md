@@ -3,8 +3,6 @@
 Research Compendium for Phillips et al. 'Open-air preservation of miniaturised lithics: Experimental research in the Cederberg Mountains, Southern Africa'
 ======================
 
-[![Binder](http://mybinder.org/badge.svg)](http://mybinder.org/v2/gh/benmarwick/phillipsetal-openair/master)
-
 The goal of this compendium is to make available to the code and data used to generate the results published in our paper. 
 
 ### Citation
