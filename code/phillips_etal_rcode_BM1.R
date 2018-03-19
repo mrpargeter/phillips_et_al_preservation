@@ -1,10 +1,9 @@
----
+#---
 Title: 'Open-air preservation of miniaturised lithics: Experimental research in the Cederberg Mountains, Southern Africa'
 author: "Natasha Phillips, Justin Pargeter, Alex Mackay and Marika Low"
 date: "December 4, 2017"
 output: html_document
----
-
+#---
 
 # Required libraries
 list.of.packages <-
@@ -22,7 +21,14 @@ list.of.packages <-
     'fitdistrplus',
     'tidyr',
     'data.table',
-    'glue'
+    'glue',
+    'MASS',
+    'methods',
+    'stats',
+    'tidyverse',
+    'readr',
+    'ggforce',
+    'here'
   )
 
 # check to see if all the required pkgs are installed, if not, install them
@@ -60,8 +66,6 @@ theme_great_plot <- function (bs = 12) {
 ###add experiment lithic measurement data from setup
 #Set working directory to folder where R code and data files are stored
 
-library(tidyverse)
-
 lithic_data <-
   read_csv("lithic_data.csv", 
            na = c("NA", '<NA>'))
@@ -71,7 +75,7 @@ str(lithic_data)
 
 lithic_data$event <- "experiment"
 
-#Create core/flake column
+#Create core/flake 'type' column
 
 lithic_data <- 
 lithic_data %>%  
@@ -79,6 +83,13 @@ lithic_data %>%
                                      "bipolar core"),
                          'core',
                          'flake'))
+
+#Create bipolar column
+
+lithic_data <- 
+  lithic_data %>%  
+  mutate(bipolar = if_else(Class %in% "freehand core",'freehand',
+                   if_else(Class %in% "bipolar core",'bipolar','flake')))
 
 ### add archaeological lithic data
 
@@ -101,12 +112,13 @@ combined_arc_exp_data <-
   full_join(lithic_data, by = c(
     "event",
     "type",
+    "bipolar",
     'Max.length',
     'Max.width',
     'Max.thick',
     'Weight'
   )) %>% 
-  select(-bipolar)
+  select(-c(ID,Series_ID))
 
 combined_arc_exp_data  <- 
   combined_arc_exp_data %>% 
@@ -122,23 +134,14 @@ combined_arc_exp_data  <-
 
 lithic_data_cores <- 
   combined_arc_exp_data %>% 
-  filter(type == "core") %>% 
-  mutate(bipolar = Class)
-
-
-#recode variable level names
-
-lithic_data_cores <- 
-  lithic_data_cores %>% 
-  mutate(bipolar = str_trim(str_replace_all(bipolar, "core", "")))
-
+  filter(type == "core") 
 
 
 #plot core sizes by 'event', generate ANOVA test results and cohen's F effect size statistic
 createComparisonPlot <- function(df, y_var, y_label, graph_title) {
 
   comparison_plot <- ggplot(df,
-                            aes_string(x = "bipolar", 
+                            aes_string(x = "event", 
                                        y = y_var, 
                                        fill = "event")) +
     geom_boxplot(outlier.size = 0, 
@@ -155,9 +158,9 @@ createComparisonPlot <- function(df, y_var, y_label, graph_title) {
       na.rm = TRUE
     ) +
     labs(title = graph_title, 
-         x = "Technology", 
+         x = "Event", 
          y = y_label) +
-    scale_x_discrete(labels = c("Bipolar", "Freehand"))
+    scale_x_discrete(labels = c("Klipfonteinrand", "Sehonghong", "Experiment"))
   
   return(comparison_plot)
 }
@@ -244,7 +247,7 @@ core_plot_length <-
     lithic_data_cores,
     y_var = 'Max.length',
     y_label = "Max Length (mm)",
-    graph_title = "Core Length (mm) and Technology"
+    graph_title = "Core Length (mm) and Event"
   )
 
 core_plot_width <-
@@ -252,7 +255,7 @@ core_plot_width <-
     lithic_data_cores,
     y_var = 'Max.width',
     y_label = "Max Width (mm)",
-    graph_title = "Core Width (mm) and Technology"
+    graph_title = "Core Width (mm) and Event"
   )
 
 core_plot_weight <-
@@ -260,7 +263,7 @@ core_plot_weight <-
     lithic_data_cores,
     y_var = 'log(Weight)',
     y_label = "Log Core Weight (g)",
-    graph_title = "Log Core Weight (g) and Technology"
+    graph_title = "Log Core Weight (g) and Event"
   )
 
 #Figure 7 combined plot
@@ -276,9 +279,8 @@ lithic_data_flakes <-
   filter(type == "flake")
   
 
-
 #plot flake length by 'event', generate ANOVA test results and cohen's F effect size statistic
-#Table 2
+#Table 2 and Figure 8
 
 flake_plot_length <-
   fullTests_flakes(
@@ -322,6 +324,60 @@ multiplot(
   flake_plot_weight$plot,
   cols = 2
 )
+
+#generate ANOVA test results and cohen's F effect size statistic on bipolar and freehand cores
+#Table 3 and Figure 9
+
+#Subset archaeological cores
+arc_data_cores <- 
+  arc_data %>% 
+  filter(type == "core")
+
+createComparisonPlot_bipolar <- function(df, y_var, y_label, graph_title) {
+  
+  comparison_plot_bipolar <- ggplot(df,
+                            aes_string(x = "event", 
+                                       y = y_var, 
+                                       fill = "bipolar")) +
+    geom_boxplot(outlier.size = 0, 
+                 outlier.colour = 'white') +
+    scale_fill_grey(start = 0,
+                    end = .9) +
+    theme_great_plot()
+  
+  comparison_plot_bipolar <- comparison_plot_bipolar +
+    geom_point(
+      aes_string(y = y_var, 
+                 group = 'bipolar'),
+      position = position_dodge(width = 0.75),
+      na.rm = TRUE
+    ) +
+    labs(title = graph_title, 
+         x = "Site", 
+         y = y_label) +
+    scale_x_discrete(labels = c("Klipfonteinrand", "Sehonghong"))
+  
+  return(comparison_plot_bipolar)
+}
+
+create_bipolarcore_Anova <- function(df, y_var,x_var, z_var) {
+  frm <- as.formula(sprintf("%s~%s + %s", y_var, x_var, z_var))
+  compare_aov <- aov(frm, data = df)
+  return(compare_aov)
+}
+
+fullTests_bipolar_core <- function(df, y_var,x_var, z_var, y_label, graph_title) {
+  compare_aov <- create_bipolarcore_Anova(df, y_var,x_var, z_var)
+  summary_aov <- summary(compare_aov)
+  cohens_f <- cohens_f(compare_aov)
+  return(list(
+    summary_aov = summary(compare_aov),
+    cohens_f = cohens_f(compare_aov),
+    plot = createComparisonPlot_bipolar(df, y_var, y_label, graph_title)))
+}
+
+fullTests_bipolar_core(df=arc_data_cores,"log(Weight)","bipolar","event",y_label="Weight (g)",graph_title="Bipolar cores and weight by site")
+fullTests_bipolar_core(df=arc_data_cores,"log(Max.length)","bipolar","event",y_label="Lenght (mm)",graph_title="Bipolar cores and length by site")
 
 ############Experimental data############
 
@@ -405,7 +461,6 @@ plot_xlabs <- c("Weight",
                 "Thickness",
                 "Elongation",
                 "Flatness",
-                "Volume",
                 "Horizontal movement")
 
 list_of_plots <- 
@@ -416,7 +471,6 @@ list_of_plots <-
          Max.thick,
          elongation,
          flatness,
-         volume,
          near_dist_m) %>% 
   map2(., 
        plot_xlabs, 
@@ -433,24 +487,21 @@ multiplot(plotlist = list_of_plots,
 control <- as.numeric(na.omit(experiment_data$near_dist_m))
 
 ## estimate the parameters as fit to weibull, exponential, log normal, and gamma distributions
-
 dists <- c("weibull", "exp", "lnorm", "gamma")
 fits <- map(dists, ~fitdist(control, .x))
 plot_fns <- c(denscomp, cdfcomp, qqcomp, ppcomp)
 
-#model diagnostics plot
-
-# windows()
 par(mfrow = c(2, 2))
-plot.legend <- c("Weibull", "exp", "lognormal", "gamma")
-plot_fns %>% invoke_map( , fits)
+plot_fns %>% invoke_map(, fits, legendtext = dists,xlegend="right",ylegend="right")
+
+dev.off()
 
 ##Series 2 tool movement modeled against tool size
 
 #use generalize linear model framework
 #model tool movement as Weibull distribution
 
-#Table 4
+#Table 5
 
 series_2_size_gamlss1 = gamlss(
   near_dist_m ~ Weight + Max.length + Max.width + Max.thick,
@@ -460,7 +511,7 @@ series_2_size_gamlss1 = gamlss(
 )
 
 #model summary 
-#Table 4
+#Table 5
 
 summary(series_2_size_gamlss1)
 
@@ -489,29 +540,45 @@ plot(series_2_size_gamlss1, par = newpar)
 #use generalize linear model framework
 #model tool movement as Weibull distribution
 
-#Table 4
+#Table 6
 
 series_2_shape_gamlss1 = gamlss(
-  near_dist_m ~ volume + elongation + flatness,
-  sigma.formula = ~ volume + elongation + flatness,
+  near_dist_m ~ elongation + flatness,
+  sigma.formula = ~ elongation + flatness,
   data = na.omit(series_2),
   family = WEI
 )
 
 #model summary 
-#Table 4
+#Table 6
 
 summary(series_2_shape_gamlss1)
 
 #model diagnostic plot 
 #Figure S3
 
+newpar <-
+  par(
+    mfrow = c(2, 2),
+    mar = par("mar") + c(0, 1, 0, 0),
+    col.axis = "blue4",
+    col = "blue4",
+    col.main = "blue4",
+    col.lab = "blue4",
+    pch = "+",
+    cex = .45,
+    cex.lab = 1.2,
+    cex.axis = 1,
+    cex.main = 1.2
+  )
+
 plot(series_2_shape_gamlss1, par = newpar) #plot model diagnostics
 
-##Model comparisons using AIC criteria 
-#Table 6
+##Generalized R2 values for series 2 models
+#Table 7
 
-AIC(series_2_shape_gamlss1, series_2_size_gamlss1)
+Rsq(series_2_size_gamlss1)
+Rsq(series_2_shape_gamlss1)
 
 ##Series 3 tool movement modeled against tool size
 
@@ -535,44 +602,73 @@ summary(series_3_size_gamlss1)
 #Model diagnostic plot 
 #Figure S4
 
-plot(series_3_size_gamlss1, par=newpar)
+newpar <-
+  par(
+    mfrow = c(2, 2),
+    mar = par("mar") + c(0, 1, 0, 0),
+    col.axis = "blue4",
+    col = "blue4",
+    col.main = "blue4",
+    col.lab = "blue4",
+    pch = "+",
+    cex = .45,
+    cex.lab = 1.2,
+    cex.axis = 1,
+    cex.main = 1.2
+  )
+
+plot(series_3_size_gamlss1, par = newpar)
 
 ##Series 3 tool movement modeled against tool size
 
 #use generalize linear model framework
 #model tool movement as Weibull distribution
 
-#Table 5
+#Table 6
 
 series_3_shape_gamlss1 = gamlss(
-  near_dist_m ~ volume + elongation + flatness,
-  sigma.formula = ~ volume + elongation + flatness,
+  near_dist_m ~ elongation + flatness,
+  sigma.formula = ~ elongation + flatness,
   data = na.omit(series_3),
   family = WEI
 )
 
 #Model summary 
-#Table 5
+#Table 6
 
 summary(series_3_shape_gamlss1)
 
 #Model diagnostic plot 
 #Figure S5
 
+newpar <-
+  par(
+    mfrow = c(2, 2),
+    mar = par("mar") + c(0, 1, 0, 0),
+    col.axis = "blue4",
+    col = "blue4",
+    col.main = "blue4",
+    col.lab = "blue4",
+    pch = "+",
+    cex = .45,
+    cex.lab = 1.2,
+    cex.axis = 1,
+    cex.main = 1.2
+  )
+
 plot(series_3_shape_gamlss1, par = newpar)
 
-##Model comparisons using AIC criteria 
-#Table 6
+##Generalized R2 values for series 3 models
+#Table 7
 
-AIC(series_3_shape_gamlss1, series_3_size_gamlss1)
+Rsq(series_3_size_gamlss1)
+Rsq(series_3_shape_gamlss1)
 
 ######Section 3.2.2. Lithic class, slope, and climate as predictors of lithic movement######
 
 ##Series 1-2 and 2-3 data cores and flakes
 
 #Function to plot comparisons of tool movement by class, slope, and climate
-
-library(ggforce)
 
 createMovementPlot <-
   function(df,
@@ -596,7 +692,7 @@ createMovementPlot <-
   }
 
 #Plot tool movement by series, class and slope
-#Figure 10
+#Figure 11
 
 createMovementPlot(
   series_2_3,
@@ -607,7 +703,7 @@ createMovementPlot(
 )
 
 #ANOVA model: tool movement, series, class, slope and their interactions
-#Table 7
+#Table 8
 
 model_10 <- with(series_2_3,
                  aov(
@@ -621,19 +717,19 @@ model_10 <- with(series_2_3,
 ))
 
 #model summary 
-#Table 7
+#Table 8
 
 summary(model_10)
 
 #ANOVA effect size 
-#Table 7
+#Table 8
 
 cohens_f(model_10)
 
 ##Series 1-2, 2-3, and 3-4 data cores ONLY
 
 #Plot tool movement by slope, series and tool class
-#Figure 11
+#Figure 12
 
 createMovementPlot(
   series_2_3_4,
@@ -644,7 +740,7 @@ createMovementPlot(
 )
 
 #ANOVA model: tool movement, climate, series, class and their interactions
-#Table 8
+#Table 9
 
 model_11 <- 
   with(series_2_3_4,
@@ -652,15 +748,16 @@ model_11 <-
                     series + 
                     class + 
                     series * slope + 
-                    series * class))
+                    series * class +
+                    class  * slope))
 
 #model summary 
-#Table 8
+#Table 9
 
 summary(model_11)
 
 #ANOVA effect size 
-#Table 8
+#Table 9
 
 cohens_f(model_11) 
 
@@ -696,7 +793,7 @@ create_perm_test <- function(df, y_var, x_var) {
 }
 
 #Permutation test results 
-#Table 9
+#Table 10
 
 
 # list of permKS output to data frame, similar to what broom:tidy would give us
@@ -802,21 +899,17 @@ series_1_2_3_loss_tbl <-
   
 
 #Chi-square on core and flake counts across recording series 
-#Table 10
+#Table 11
 
 chi_sq_1_2_3 <- chisq.test(series_1_2_3_loss_tbl)
 
-#effect size 
-
-chies(chi_sq_1_2_3$statistic, sum(series_1_2_3_loss_tbl) - 1) #chi-square value and sample size
-
 #Extract odds ratio and 95 % CI 
-#Table 11
+#Table 12
 
 odd_1 <- oddsratio.wald(as.matrix(series_1_2_3_loss_tbl))
 odd_1$measure
 
-#Figure 14
+#Figure 15
 
 series_1_2_3_tally %>% 
   mutate(Series = factor(series)) %>% 
@@ -840,21 +933,17 @@ series_2_3_4_cores_loss_tbl <-
   column_to_rownames("class")
 
 #Chi-square on core counts across recording series 
-#Table 10
+#Table 11
 
 chi_sq_2_3_4 <- chisq.test(series_2_3_4_cores_loss_tbl)
 
-#effect size 
-
-chies(chi_sq_2_3_4$statistic, sum(series_2_3_4_cores_loss_tbl) - 1) #chi-square value and sample size
-
 #Extract odds ratio and 95 % CI 
-#Table 11
+#Table 12
 
 odd_2 <- oddsratio.wald(as.matrix(series_2_3_4_cores_loss_tbl))
 odd_2$measure
 
-#Figure 15
+#Figure 16
 series_2_3_4_cores_tally %>% 
   mutate(Series = factor(series)) %>% 
   rename(Class = class,
@@ -1035,10 +1124,14 @@ run_simulation_plot<-function(n, tool_event_coords_subset){
             geom_vline(xintercept=5, color = 'red')
 }
 
+#Table 13 counts beyond 5 m boundary
+
 sim_10 = run_simulation_plot(10, tool_event_coords_subset)
 sim_100 = run_simulation_plot(100, tool_event_coords_subset)
 sim_1000 = run_simulation_plot(1000, tool_event_coords_subset)
 sim_10000 = run_simulation_plot(10000, tool_event_coords_subset)
+
+#Inputs for figures 18 and 19
 
 grid.arrange(sim_10,sim_100, sim_1000, sim_10000, 
              ncol=2)
